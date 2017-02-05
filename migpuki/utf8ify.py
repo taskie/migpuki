@@ -79,7 +79,7 @@ class UTF8ify:
             procs.append(proc)
             stdin = proc.stdout
         nkfout = PIPE if gzip else newfile
-        proc = subprocess.Popen(['nkf', '-E', '-w8'],
+        proc = subprocess.Popen(['nkf', '-E', '-w80'],
                                 stdin=stdin, stderr=sys.stderr, stdout=nkfout)
         procs.append(proc)
         stdin = proc.stdout
