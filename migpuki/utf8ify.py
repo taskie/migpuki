@@ -4,6 +4,7 @@
 import argparse
 import codecs
 import glob
+import gzip as gziplib
 import os
 import os.path
 import re
@@ -51,43 +52,32 @@ class UTF8ify:
         if self.noconvert:
             convert = False
         newpath = self.generate_new_path(oldpath)
-        if self.verbose:
-            print('old: ' + oldpath)
-            print('new: ' + newpath)
+        self.printv('old: ' + oldpath)
+        self.printv('new: ' + newpath)
         newdirname = os.path.dirname(newpath)
         if not os.path.exists(newdirname):
             os.makedirs(newdirname)
         if convert:
             try:
-                stdin = None
-                with open(newpath, 'wb') as newfile:
-                    with open(oldpath, 'rb') as oldfile:
-                        self.convert_stream(oldfile, newfile, gzip)
-            except Exception as e:
-                print('Error: {} -> {} \n{}'.format(oldpath, newpath, e), file=sys.stderr)
-                shutil.copy(oldpath, newpath)
+                openf = gziplib.open if gzip else open
+                with openf(newpath, 'wb') as newfile:
+                    with openf(oldpath, 'rb') as oldfile:
+                        self.convert_stream(oldfile, newfile)
+            except UnicodeError as e:
+                print('Error: {} -> {} \n       {}'.format(oldpath, newpath, e), file=sys.stderr)
+                with openf(newpath, 'wb') as newfile:
+                    with openf(oldpath, 'rb') as oldfile:
+                        self.convert_stream(oldfile, newfile, errors='replace')
+                newnoextname, _ = os.path.splitext(os.path.basename(newpath))
+                neweucpath = os.path.join(newdirname, newnoextname + "." + self.encoding)
+                shutil.copy(oldpath, neweucpath)
+                print('Copy:  {} -> {}'.format(oldpath, neweucpath), file=sys.stderr)
         else:
             shutil.copy(oldpath, newpath)
 
-    def convert_stream(self, oldfile, newfile, gzip):
-        PIPE = subprocess.PIPE
-        stdin = oldfile
-        procs = []
-        if gzip:
-            proc = subprocess.Popen(['gzip', '-cd'],
-                                    stdin=stdin, stderr=sys.stderr, stdout=PIPE)
-            procs.append(proc)
-            stdin = proc.stdout
-        nkfout = PIPE if gzip else newfile
-        proc = subprocess.Popen(['nkf', '-E', '-w80'],
-                                stdin=stdin, stderr=sys.stderr, stdout=nkfout)
-        procs.append(proc)
-        stdin = proc.stdout
-        if gzip:
-            proc =subprocess.Popen(['gzip', '-c'],
-                                   stdin=stdin, stderr=sys.stderr, stdout=newfile)
-            procs.append(proc)
-        # unused procs...
+    def convert_stream(self, oldfile, newfile, *, errors='strict'):
+        # FIXME: buffer?
+        newfile.write(bytes(oldfile.read().decode(self.encoding, errors=errors), self.encoding, errors=errors))
 
     def generate_new_path(self, oldpath: str):
         olddirname = os.path.dirname(oldpath)
@@ -115,6 +105,10 @@ class UTF8ify:
                 newdirname = newdirname[1:]
         newpath = os.path.join(self.outdir, newdirname, newnoextname + oldextname)
         return newpath
+
+    def printv(self, *args, **kwargs):
+        if self.verbose:
+            print(*args, **kwargs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='UTF-8ify PukiWiki data.')

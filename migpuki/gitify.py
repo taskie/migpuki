@@ -268,7 +268,7 @@ class Gitify:
         return proc.returncode
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='utf8ize PukiWiki data.')
+    parser = argparse.ArgumentParser(description='gitify PukiWiki data.')
     parser.add_argument('basedir',
                         help='UTF-8ized PukiWiki root directory (which has wiki / backup directories)')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,

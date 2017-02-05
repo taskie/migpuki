@@ -9,8 +9,6 @@ PukiWiki のデータとファイル名を UTF-8 に変換する Python スク�
 ### 必須
 
 * Python 3.5
-* nkf
-* gzip
 
 ### 使い方
 
@@ -19,6 +17,12 @@ PukiWiki のデータとファイル名を UTF-8 に変換する Python スク�
 ```
 ./utf8ify.py <EUC 版 PukiWiki の index.php のあるディレクトリ>
 ```
+
+### 注意
+
+* Python 3 の decode での EUC_JP → UTF-8 の変換がうまくいかないことが稀によくある
+    * とりあえずエラーを無視（`errors=replace`）して無理矢理続行する
+    * 変換失敗した場合元のファイルを .euc_jp という拡張子で出力先にそのままコピーするのでそれを nkf のような別ソフトで各自変換してください
 
 ## gitify.py
 
