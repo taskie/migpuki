@@ -6,15 +6,18 @@ import glob
 import gzip
 import os
 import os.path
-import shutil
-import sys
 import re
+import shutil
 import subprocess
+import sys
 from collections import namedtuple
 from datetime import datetime, timezone, timedelta
 
 Commit = namedtuple('Commit', ['unixtime', 'path', 'data', 'latest'])
-unixtime_re = re.compile(r'^\s*\>{10}\s+(\d+)\s*$')
+unixtime_re = re.compile(r'\s*\>{10}\s+(\d+)\s*')
+renamelog_date_re = re.compile(r'\s*(\d{4})-(\d{2})-(\d{2})\s+\(.+?\)\s+(\d{2}):(\d{2}):(\d{2})\s*')
+renamelog_from_re = re.compile(r'\s*--From:\[\[(.+?)\]\]\s*')
+renamelog_to_re = re.compile(r'\s*--To:\[\[(.+?)\]\]\s*')
 
 class Gitify:
     def __init__(self, basedir, *, verbose=False, outdir='wiki-repo', name=None, email=None):
@@ -23,7 +26,10 @@ class Gitify:
         self.outdir = outdir
         self.name = name
         self.email = email
-        self._debug_count = 100
+
+        self.all_history = []
+        self.rename_history = []
+        self._debug_count = 0
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -83,6 +89,10 @@ class Gitify:
             latest = True
         history.append(Commit(unixtime, path, buf, latest))
         return history
+
+    def read_rename_log(self, file):
+        # unimplemented
+        pass
 
     def generate_git_repository(self):
         os.makedirs(self.outdir)
