@@ -77,7 +77,7 @@ class UTF8ify:
 
     def convert_stream(self, oldfile, newfile, *, errors='strict'):
         # FIXME: buffer?
-        newfile.write(bytes(oldfile.read().decode(self.encoding, errors=errors), self.encoding, errors=errors))
+        newfile.write(bytes(oldfile.read().decode(self.encoding, errors=errors), 'utf-8', errors=errors))
 
     def generate_new_path(self, oldpath: str):
         olddirname = os.path.dirname(oldpath)
