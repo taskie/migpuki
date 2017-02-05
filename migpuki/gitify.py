@@ -33,7 +33,7 @@ class Gitify:
         self.commit_history = []     # [Commit]
         self.rename_history = set()  # {Rename}
         self.all_history = []        # [Commit | Rename]
-        self._debug_count = 100
+        self._debug_count = 0
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -175,9 +175,9 @@ class Gitify:
             self.execute(['git', 'config', 'user.email', self.email], exception=True)
         for item in self.all_history:
             if type(item) == Commit:
-                pass # self.commit(item)
+                self.commit(item)
             elif type(item) == Rename:
-                pass # self.rename(item)
+                self.rename(item)
             else:
                 assert("Unknown Type: " + str(type(item)))
         self.copy_latests()
