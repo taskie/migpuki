@@ -23,3 +23,7 @@ utf8ify 後の wiki/backup データを Git リポジトリに変換する Pytho
 
 * macOS (HFS+) で動かすと日本語ファイル名が NFD でアレなので各自で対処してください
     * Linux 上で動かした方がいいです
+
+## License
+
+Apache License 2.0
