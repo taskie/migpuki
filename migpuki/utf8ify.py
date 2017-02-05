@@ -130,7 +130,7 @@ if __name__ == '__main__':
                         help='encoding of PukiWiki data (euc_jp / utf_8) (tested euc_jp only)')
     # ref.) http://qiita.com/knaka/items/48e1799b56d520af6a09
     parser.add_argument('-u', '--normalize', default='NFC',
-                        help='unicode normalize mode for filepath')
+                        help='unicode normalize mode for filepath (NFC / NFD / NFKC / NFKD)')
 
     params = parser.parse_args()
 
