@@ -22,7 +22,9 @@ PukiWiki のデータとファイル名を UTF-8 に変換する Python スク�
 
 * Python 3 の decode での EUC_JP → UTF-8 の変換がうまくいかないことが稀によくある
     * とりあえずエラーを無視（`errors=replace`）して無理矢理続行する
-    * 変換失敗した場合元のファイルを .euc_jp という拡張子で出力先にそのままコピーするのでそれを nkf のような別ソフトで各自変換してください
+* 変換に失敗した場合元のファイルを .euc_jp という拡張子で出力先にそのままコピーするのでそれを nkf のような別ソフトで各自変換してください
+    * nkf でこのファイルを UTF-8 に一括変換する bash スクリプトを `contrib/nkfy.sh` として用意しておきました
+    * `./nkfy.sh <utf8ify.py の生成したディレクトリ>` のように使う
 
 ## gitify.py
 
@@ -40,13 +42,6 @@ utf8ify 後の wiki/backup データを Git リポジトリに変換する Pytho
 ```
 ./gitify.py <utf8ify.py の生成した wiki, backup のあるディレクトリ>
 ```
-
-### 注意
-
-* macOS (HFS+) で動かすと日本語ファイル名が NFD でアレで git がアレなので各自で対処してください
-    * `core.precomposeunicode = true` がオンなのにちゃんと動いてない気がする
-        * なんもわからん
-    * とにかく Linux 上で動かした方がいいです
 
 ## 詳細な使い方
 
