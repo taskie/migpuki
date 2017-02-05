@@ -14,8 +14,9 @@ from collections import namedtuple
 from datetime import datetime, timezone, timedelta
 
 Commit = namedtuple('Commit', ['unixtime', 'path', 'data', 'latest'])
+Rename = namedtuple('Rename', ['unixtime', 'oldpath', 'newpath'])
 unixtime_re = re.compile(r'\s*\>{10}\s+(\d+)\s*')
-renamelog_date_re = re.compile(r'\s*(\d{4})-(\d{2})-(\d{2})\s+\(.+?\)\s+(\d{2}):(\d{2}):(\d{2})\s*')
+renamelog_date_re = re.compile(r'\s*\*(\d+)-(\d+)-(\d+)\s*\(.+?\)\s*(\d+):(\d+):(\d+)\s*')
 renamelog_from_re = re.compile(r'\s*--From:\[\[(.+?)\]\]\s*')
 renamelog_to_re = re.compile(r'\s*--To:\[\[(.+?)\]\]\s*')
 
@@ -27,46 +28,67 @@ class Gitify:
         self.name = name
         self.email = email
 
-        self.all_history = []
-        self.rename_history = []
-        self._debug_count = 0
+        self.commit_history = []     # [Commit]
+        self.rename_history = set()  # {Rename}
+        self.all_history = []        # [Commit | Rename]
+        self._debug_count = 100
 
     def run(self):
         if os.path.exists(self.outdir):
             print('output directory "{}" already exists.'.format(self.outdir), file=sys.stderr)
             exit(1)
-        self.all_history = []
-        self.generate_all_history()
+        self.commit_history = []
+        self.generate_commit_history()
+        self.rename_history = set()
+        self.generate_rename_history()
+        self.all_history = self.commit_history + list(self.rename_history)
         self.all_history.sort()
+        self.check_rename()
         self.generate_git_repository()
 
-    def generate_all_history(self):
+    def generate_commit_history(self):
         pattern = os.path.join(self.basedir, 'backup/**/*.txt')
         prefixlen = len(os.path.join(self.basedir, 'backup') + os.sep)
         for oldpath in glob.iglob(pattern, recursive=True):
+            if oldpath.endswith('backup/_RenameLog.txt'):
+                continue
             with open(oldpath) as oldfile:
                 path = oldpath[prefixlen:]
                 self.read_and_extend_history(oldfile, path)
-            if self._debug_count and len(self.all_history) > self._debug_count / 3:
+            if self._debug_count and len(self.commit_history) > self._debug_count / 3:
                 break
         pattern = os.path.join(self.basedir, 'backup/**/*.gz')
         for oldpath in glob.iglob(pattern, recursive=True):
+            if oldpath.endswith('backup/_RenameLog.gz'):
+                continue
             with gzip.open(oldpath) as oldfile:
                 path = oldpath[prefixlen:-3] + '.txt'
                 self.read_and_extend_history(oldfile, path)
-            if self._debug_count and len(self.all_history) > self._debug_count * 2 / 3:
+            if self._debug_count and len(self.commit_history) > self._debug_count * 2 / 3:
                 break
         pattern = os.path.join(self.basedir, 'wiki/**/*.txt')  # latest
         prefixlen = len(os.path.join(self.basedir, 'wiki') + os.sep)
         for oldpath in glob.iglob(pattern, recursive=True):
+            if oldpath.endswith('wiki/_RenameLog.txt'):
+                continue
             with open(oldpath) as oldfile:
                 path = oldpath[prefixlen:]
                 self.read_and_extend_history(oldfile, path)
-            if self._debug_count and len(self.all_history) > self._debug_count:
+            if self._debug_count and len(self.commit_history) > self._debug_count:
                 break
 
+    def generate_rename_history(self):
+        pattern = os.path.join(self.basedir, '*/_RenameLog.*')
+        for path in glob.iglob(pattern, recursive=True):
+            openf = open
+            if path.endswith('.gz'):
+                openf = gzip.open
+            with openf(path) as file:
+                self.read_and_update_rename_history(file)
+        print(self.rename_history)
+
     def read_and_extend_history(self, oldfile, path):
-        self.all_history.extend(self.read_history(oldfile, path))
+        self.commit_history.extend(self.read_history(oldfile, path))
 
     def read_history(self, oldfile, path):
         history = []
@@ -85,14 +107,50 @@ class Gitify:
             else:
                 buf += line
         if unixtime == None:
-            unixtime = datetime.now().timestamp()
+            unixtime = datetime.now(timezone.utc).timestamp()
             latest = True
         history.append(Commit(unixtime, path, buf, latest))
         return history
 
-    def read_rename_log(self, file):
-        # unimplemented
-        pass
+    def read_and_update_rename_history(self, file):
+        history = self.read_rename_history(file)
+        self.rename_history.update(history)
+
+    def read_rename_history(self, file):
+        history = set()
+        unixtime = None
+        page_from = None
+        for line in file:
+            if hasattr(line, 'decode'):
+                line = line.decode('utf-8')
+            line = line.strip()
+            match = renamelog_date_re.match(line)
+            if match:
+                y, mo, d, h, mi, s = map(int, match.groups())
+                unixtime = datetime(y, mo, d, h, mi, s, 0).timestamp()
+                continue
+            match = renamelog_from_re.match(line)
+            if match:
+                page_from = match.group(1)
+                continue
+            match = renamelog_to_re.match(line)
+            if match:
+                page_to = match.group(1)
+                history.add(Rename(unixtime, page_from + ".txt", page_to + ".txt"))
+                unixtime = None
+                page_from = None
+                continue
+        return history
+
+    def check_rename(self):
+        for item in reversed(self.all_history):
+            if type(item) == Commit:
+                pass
+            elif type(item) == Rename:
+                print(item)
+                pass
+            else:
+                assert("Unknown Type: " + str(type(item)))
 
     def generate_git_repository(self):
         os.makedirs(self.outdir)
@@ -104,8 +162,13 @@ class Gitify:
             subprocess.run(['git', 'config', 'user.name', self.name])
         if self.email:
             subprocess.run(['git', 'config', 'user.email', self.email])
-        for commit in self.all_history:
-            self.commit(commit)
+        for item in self.all_history:
+            if type(item) == Commit:
+                self.commit(item)
+            elif type(item) == Rename:
+                self.rename(item)
+            else:
+                assert("Unknown Type: " + str(type(item)))
         self.commit_latests()
         os.chdir(oldcwd)
 
@@ -132,6 +195,17 @@ class Gitify:
         if proc.returncode == 0:
             return
         proc = subprocess.run(['git', 'commit', '-m', commit.path + ' (PukiWiki)'])
+        if proc.returncode != 0:
+            raise Exception('failed: git commit ({}), return code: {}'.format(commit.path, proc.returncode))
+
+    def rename(self, rename):
+        proc = subprocess.run(['git', 'mv', rename.oldpath, rename.newpath])
+        if proc.returncode != 0:
+            return # raise Exception('failed: git mv {} {}, return code: {}'.format(rename.oldpath, rename.newpath, proc.returncode))
+        proc = subprocess.run(['git', 'diff-index', '--quiet', 'HEAD', '--'])
+        if proc.returncode == 0:
+            return
+        proc = subprocess.run(['git', 'commit', '-m', rename.oldpath + ' -> ' + rename.newpath + ' (PukiWiki)'])
         if proc.returncode != 0:
             raise Exception('failed: git commit ({}), return code: {}'.format(commit.path, proc.returncode))
 
