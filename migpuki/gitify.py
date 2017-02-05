@@ -17,13 +17,13 @@ Commit = namedtuple('Commit', ['unixtime', 'path', 'data'])
 unixtime_re = re.compile(r'^\s*\>{10}\s+(\d+)\s*$')
 
 class Gitify:
-    def __init__(self, basedir, *, verbose=False, outdir='repo', name=None, email=None):
+    def __init__(self, basedir, *, verbose=False, outdir='wiki-repo', name=None, email=None):
         self.basedir = basedir
         self.verbose = verbose
         self.outdir = outdir
         self.name = name
         self.email = email
-        self._debug_count = 100
+        self._debug_count = 0
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -118,7 +118,7 @@ if __name__ == '__main__':
                         help='UTF-8ized PukiWiki root directory (which has wiki / backup directories)')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                         help='show verbose log')
-    parser.add_argument('-o', '--outdir', default='repo',
+    parser.add_argument('-o', '--outdir', default='wiki-repo',
                         help='output directory name')
     parser.add_argument('-n', '--name', help='Git author / committer name')
     parser.add_argument('-e', '--email', help='Git author / committer email')
