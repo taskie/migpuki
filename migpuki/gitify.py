@@ -13,7 +13,7 @@ import subprocess
 from collections import namedtuple
 from datetime import datetime, timezone, timedelta
 
-Commit = namedtuple('Commit', ['unixtime', 'path', 'data'])
+Commit = namedtuple('Commit', ['unixtime', 'path', 'data', 'latest'])
 unixtime_re = re.compile(r'^\s*\>{10}\s+(\d+)\s*$')
 
 class Gitify:
@@ -23,7 +23,7 @@ class Gitify:
         self.outdir = outdir
         self.name = name
         self.email = email
-        self._debug_count = 0
+        self._debug_count = 100
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -41,12 +41,20 @@ class Gitify:
             with open(oldpath) as oldfile:
                 path = oldpath[prefixlen:]
                 self.read_and_extend_history(oldfile, path)
-            if self._debug_count and len(self.all_history) > self._debug_count / 2:
+            if self._debug_count and len(self.all_history) > self._debug_count / 3:
                 break
         pattern = os.path.join(self.basedir, 'backup/**/*.gz')
         for oldpath in glob.iglob(pattern, recursive=True):
             with gzip.open(oldpath) as oldfile:
                 path = oldpath[prefixlen:-3] + '.txt'
+                self.read_and_extend_history(oldfile, path)
+            if self._debug_count and len(self.all_history) > self._debug_count * 2 / 3:
+                break
+        pattern = os.path.join(self.basedir, 'wiki/**/*.txt')  # latest
+        prefixlen = len(os.path.join(self.basedir, 'wiki') + os.sep)
+        for oldpath in glob.iglob(pattern, recursive=True):
+            with open(oldpath) as oldfile:
+                path = oldpath[prefixlen:]
                 self.read_and_extend_history(oldfile, path)
             if self._debug_count and len(self.all_history) > self._debug_count:
                 break
@@ -58,20 +66,22 @@ class Gitify:
         history = []
         unixtime = None
         buf = ''
+        latest = False
         for line in oldfile:
             if hasattr(line, 'decode'):
                 line = line.decode('utf-8')
             match = unixtime_re.match(line)
             if match:
                 if unixtime != None:
-                    history.append(Commit(unixtime, path, buf))
+                    history.append(Commit(unixtime, path, buf, latest))
                     buf = ''
                 unixtime = int(match.group(1))
             else:
                 buf += line
-        if unixtime != None:
-            # in memory...
-            history.append(Commit(unixtime, path, buf))
+        if unixtime == None:
+            unixtime = datetime.now().timestamp()
+            latest = True
+        history.append(Commit(unixtime, path, buf, latest))
         return history
 
     def generate_git_repository(self):
@@ -86,6 +96,7 @@ class Gitify:
             subprocess.run(['git', 'config', 'user.email', self.email])
         for commit in self.all_history:
             self.commit(commit)
+        self.commit_latests()
         os.chdir(oldcwd)
 
     def printv(self, *args, **kwargs):
@@ -104,6 +115,8 @@ class Gitify:
         proc = subprocess.run(['git', 'add', commit.path])
         if proc.returncode != 0:
             raise Exception('failed: git add {}, return code: {}'.format(commit.path, proc.returncode))
+        if commit.latest:
+            return
         # http://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
         proc = subprocess.run(['git', 'diff-index', '--quiet', 'HEAD', '--'])
         if proc.returncode == 0:
@@ -111,6 +124,15 @@ class Gitify:
         proc = subprocess.run(['git', 'commit', '-m', commit.path + ' (PukiWiki)'])
         if proc.returncode != 0:
             raise Exception('failed: git commit ({}), return code: {}'.format(commit.path, proc.returncode))
+
+    def commit_latests(self):
+        proc = subprocess.run(['git', 'diff-index', '--quiet', 'HEAD', '--'])
+        if proc.returncode == 0:
+            return
+        proc = subprocess.run(['git', 'commit', '-m', 'migrated from PukiWiki using migpuki'])
+        if proc.returncode != 0:
+            raise Exception('failed: git commit ({}), return code: {}'.format(commit.path, proc.returncode))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='utf8ize PukiWiki data.')
