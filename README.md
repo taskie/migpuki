@@ -1,4 +1,4 @@
-# pukiutils
+# migpuki
 
 ## utf8ify.py
 
