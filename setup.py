@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from setuptools import setup, find_packages
 from migpuki import __version__
 
@@ -7,6 +9,8 @@ setup(name='migpuki',
       author='taskie',
       author_email='t@skie.jp',
       url='https://github.com/taskie/migpuki',
+      license='Apache License 2.0',
+      keywords=['pukiwiki'],
       packages=find_packages(),
       entry_points="""
       [console_scripts]
