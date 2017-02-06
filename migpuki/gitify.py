@@ -267,7 +267,7 @@ class Gitify:
             raise Exception('failed: {}, return code: {}'.format(' '.join(command), proc.returncode))
         return proc.returncode
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='gitify PukiWiki data.')
     parser.add_argument('basedir',
                         help='UTF-8ized PukiWiki root directory (which has wiki / backup directories)')
@@ -288,3 +288,6 @@ if __name__ == '__main__':
                     email=params.email,
                     renamelog=params.renamelog)
     gitify.run()
+
+if __name__ == '__main__':
+    main()

@@ -5,7 +5,7 @@ if (( $# < 1 )); then
     exit 1
 fi
 
-for oldfile in $(find $1 -name '*.euc_jp')
+for oldfile in $(find "$1" -name '*.euc_jp')
 do
     noextfile="${oldfile%%.euc_jp}"
     bakfile="$noextfile.bak"

@@ -110,7 +110,7 @@ class UTF8ify:
         if self.verbose:
             print(*args, **kwargs)
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='UTF-8ify PukiWiki data.')
     parser.add_argument('basedir',
                         help='PukiWiki root directory (which has index.php)')
@@ -135,3 +135,6 @@ if __name__ == '__main__':
                       noconvert=params.noconvert,
                       normalize_mode=params.normalize)
     utf8ify.run()
+
+if __name__ == '__main__':
+    main()
