@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# requirements: Python 3.5, nkf, gzip
+# requirements: Python 3.5
 
 import argparse
 import codecs

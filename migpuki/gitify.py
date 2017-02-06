@@ -184,7 +184,7 @@ class Gitify:
         os.chdir(oldcwd)
 
     def commit(self, commit):
-        # !!! you must have ch(anged )dir to git repo when you use this function !!!
+        # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(commit.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
@@ -202,7 +202,7 @@ class Gitify:
         self.execute(['git', 'commit', '-m', name + ' (PukiWiki)'], exception=True)
 
     def rename(self, rename):
-        # !!! you must have ch(anged )dir to git repo when you use this function !!!
+        # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(rename.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
@@ -217,7 +217,7 @@ class Gitify:
         self.execute(['git', 'commit', '-m', oldname + ' -> ' + newname + ' (PukiWiki)'], exception=True)
 
     def copy_latests(self):
-        # !!! you must have ch(anged )dir to git repo when you use this function !!!
+        # !!! you must chdir to git repo when you use this function !!!
         print("finalizing...")
         if 'GIT_COMMITTER_DATE' in os.environ:
             del os.environ['GIT_COMMITTER_DATE']
@@ -242,7 +242,7 @@ class Gitify:
         self.execute(['git', 'commit', '-m', 'migrated from PukiWiki using migpuki'], exception=True)
 
     def repository_has_no_diff(self):
-        # !!! you must have ch(anged )dir to git repo when you use this function !!!
+        # !!! you must chdir to git repo when you use this function !!!
         # git diff-index
         # http://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
         return not self.execute(['git', 'diff-index', '--quiet', 'HEAD', '--'], silent=True)
