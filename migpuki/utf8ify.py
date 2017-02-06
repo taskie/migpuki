@@ -14,15 +14,19 @@ import sys
 import unicodedata
 from collections import namedtuple
 
-UTF8ifyConf = namedtuple('UTF8ifyConf', ['pattern', 'excludes', 'gzip', 'fileconv', 'pathconv'])
+ConvPukiConf = namedtuple('ConvPukiConf', ['pattern', 'excludes', 'gzip', 'fileconv', 'pathconv'])
 pathbadchars = {':'}
-valid_encodings = {'euc_jp', 'utf_8'}
+encoding_alias_map = {
+    'euc_jp': {'eucjp', 'euc-jp'},
+    'utf-8': {'utf8', 'utf_8'},
+}
+valid_encodings = {'euc_jp', 'utf-8'}
 valid_normalizations = {'NFC', 'NFD', 'NFKC', 'NFKD'}
 
-class UTF8ify:
+class ConvPuki:
     def __init__(self, basedir, *,
-                 verbose=False, outdir='utf8', encoding_from='euc_jp', encoding_to='utf_8',
-                 fileconv=False, pathconv=False, outhexpath=True, normalization='NFC'):
+                 verbose=False, outdir='utf-8', encoding_from='euc_jp', encoding_to='utf-8',
+                 fileconv=True, pathconv=True, outhexpath=False, normalization='NFC'):
         self.basedir = basedir
         self.verbose = verbose
         self.outdir = outdir
@@ -35,27 +39,34 @@ class UTF8ify:
         self.validate()
 
     def validate(self):
+        for encoding, aliases in encoding_alias_map.items():
+            if self.encoding_from.lower() in aliases:
+                self.encoding_from = encoding
+            if self.encoding_to.lower() in aliases:
+                self.encoding_to = encoding
         if not self.pathconv and self.outhexpath:
             raise ValueError('you cannot set both of nopathconv and outhexpath')
         if self.encoding_from not in valid_encodings:
             raise ValueError('invalid encoding (from): ' + self.encoding_from)
         if self.encoding_to not in valid_encodings:
             raise ValueError('invalid encoding (to): ' + self.encoding_to)
-        if self.encoding_to not in valid_normalizations:
+        if self.normalization not in valid_normalizations:
             raise ValueError('invalid normalization mode: ' + self.normalization)
+        if not self.outhexpath and self.encoding_to != 'utf-8':
+            raise ValueError('you must set --outhexpath (-x) when you specify --encoding_to euc_jp' + self.normalization)
 
     def run(self):
         confs = [
-            UTF8ifyConf('wiki/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
-            UTF8ifyConf('backup/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
-            UTF8ifyConf('backup/**/*.gz', {}, gzip=True, fileconv=True, pathconv=True),
-            UTF8ifyConf('diff/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
-            UTF8ifyConf('counter/**/*.count', {}, gzip=False, fileconv=True, pathconv=True),
-            UTF8ifyConf('cache/**/*', {r'\.re[fl]$'}, gzip=False, fileconv=True, pathconv=False),
-            UTF8ifyConf('cache/**/*', {r'\.(dat|lock)$'}, gzip=False, fileconv=True, pathconv=True),
-            UTF8ifyConf('attach/**/*', {r'/dir\.txt$', r'\.log$'}, gzip=False, fileconv=False, pathconv=True),
+            ConvPukiConf('wiki/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
+            ConvPukiConf('backup/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
+            ConvPukiConf('backup/**/*.gz', {}, gzip=True, fileconv=True, pathconv=True),
+            ConvPukiConf('diff/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
+            ConvPukiConf('counter/**/*.count', {}, gzip=False, fileconv=True, pathconv=True),
+            ConvPukiConf('cache/**/*', {r'\.(?:re[fl]|tmp)$'}, gzip=False, fileconv=True, pathconv=False),
+            ConvPukiConf('attach/**/*', {r'/dir\.txt$', r'\.log$'}, gzip=False, fileconv=False, pathconv=True),
         ]
         for conf in confs:
+            print('* converting {} (excluded: {}) ...'.format(conf.pattern, ', '.join(conf.excludes)))
             pattern = os.path.join(self.basedir, conf.pattern)
             excludes = {re.compile(s) for s in conf.excludes}
             for oldpath in glob.iglob(pattern, recursive=True):
@@ -66,40 +77,43 @@ class UTF8ify:
                             banned = True
                             break
                     if not banned:
-                        self.utf8ify_file(oldpath, fileconv=conf.fileconv, gzip=conf.gzip)
+                        fileconv = False if not self.fileconv else conf.fileconv
+                        pathconv = False if not self.pathconv else conf.pathconv
+                        self.convpuki_file(oldpath, gzip=conf.gzip, fileconv=fileconv, pathconv=pathconv)
 
-    def utf8ify_file(self, oldpath: str, *, gzip=False, fileconv=False, pathconv=True):
-        if not self.fileconv:
-            fileconv = False
+    def convpuki_file(self, oldpath: str, *, gzip=False, fileconv=False, pathconv=True):
         newpath = self.generate_new_path(oldpath, pathconv=pathconv)
         self.printv('--')
-        self.printv('old: ' + oldpath)
-        self.printv('new: ' + newpath)
+        self.printv('[old]: ' + oldpath)
+        self.printv('[new]: ' + newpath)
         newdirname = os.path.dirname(newpath)
         if not os.path.exists(newdirname):
             os.makedirs(newdirname)
-        if fileconv:
+        if not fileconv or self.encoding_from == self.encoding_to:
+            shutil.copy(oldpath, newpath)
+            self.printv('[copy]: succeeded.')
+        else:
             try:
                 openf = gziplib.open if gzip else open
                 with openf(newpath, 'wb') as newfile:
                     with openf(oldpath, 'rb') as oldfile:
                         self.fileconv_stream(oldfile, newfile)
+                self.printv('[convert] succeeded.')
             except UnicodeError as e:
-                print('error: {} -> {} \n       {}'.format(oldpath, newpath, e), file=sys.stderr)
+                print('[error]: {} -> {} \n{}'.format(oldpath, newpath, e), file=sys.stderr)
                 with openf(newpath, 'wb') as newfile:
                     with openf(oldpath, 'rb') as oldfile:
                         self.fileconv_stream(oldfile, newfile, errors='replace')
                 newnoextname, _ = os.path.splitext(os.path.basename(newpath))
                 newrawpath = os.path.join(newdirname, newnoextname + '.' + self.encoding_from)
                 shutil.copy(oldpath, newrawpath)
-                print('copy: {} -> {}'.format(oldpath, neweucpath), file=sys.stderr)
-        else:
-            shutil.copy(oldpath, newpath)
+                print('[copy]: {} -> {}'.format(oldpath, newrawpath), file=sys.stderr)
+                print('')
 
     def fileconv_stream(self, oldfile, newfile, *, errors='strict'):
-        # FIXME: buffer?
+        # FIXME: should use I/O stream
         decoded = oldfile.read().decode(self.encoding_from, errors=errors)
-        newfile.write(bytes(decoded, self.encoding_to, errors=errors))
+        newfile.write(decoded.encode(self.encoding_to, errors=errors))
 
     def generate_new_path(self, oldpath: str, pathconv=True):
         olddirname = os.path.dirname(oldpath)
@@ -107,16 +121,24 @@ class UTF8ify:
         oldnoextname, oldextname = os.path.splitext(oldbasename)
         oldparts = oldnoextname.split('_')
         newnoextname = None
-        try:
-            newparts = []
-            for s in oldparts:
-                euc = codecs.decode(s, 'hex_codec')
-                utf8 = codecs.decode(euc, self.encoding_from)
-                newparts.append(utf8)
-            utf8name = '_'.join(newparts)
-            newnoextname = unicodedata.normalize(self.normalization, utf8name)
-        except Exception as e:
-            raise e  # FIXME
+        if pathconv:
+            try:
+                newparts = []
+                for s in oldparts:
+                    b = codecs.decode(s, 'hex_codec')
+                    s = b.decode(self.encoding_from)
+                    if self.outhexpath:
+                        b = s.encode(self.encoding_to)
+                        b = codecs.encode(b, 'hex_codec')
+                        s = codecs.decode(b, 'ascii').upper()
+                    newparts.append(s)
+                newnoextname = '_'.join(newparts)
+                if self.encoding_to == 'utf-8':
+                    newnoextname = unicodedata.normalize(self.normalization, newnoextname)
+            except Exception as e:
+                raise e  # FIXME?
+        else:
+            newnoextname = oldnoextname
         for c in pathbadchars:
             newnoextname = newnoextname.replace(c, '_')
         newdirname = olddirname
@@ -133,7 +155,7 @@ class UTF8ify:
             print(*args, **kwargs)
 
 def main():
-    parser = argparse.ArgumentParser(description='UTF-8ify PukiWiki data.')
+    parser = argparse.ArgumentParser(description='convert encoding PukiWiki data.')
     parser.add_argument('basedir',
                         help='PukiWiki root directory (which has index.php)')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
@@ -141,9 +163,9 @@ def main():
     parser.add_argument('-o', '--outdir', default='utf8',
                         help='output directory name')
     parser.add_argument('-f', '--encoding_from', default='euc_jp',
-                        help='input encoding of PukiWiki data (euc_jp / utf_8) (tested euc_jp only)')
-    parser.add_argument('-t', '--encoding_to', default='utf_8',
-                        help='output encoding of PukiWiki data (utf_8 / euc_jp) (tested utf_8 only)')
+                        help='input encoding of PukiWiki data (euc_jp / utf-8) (tested euc_jp only)')
+    parser.add_argument('-t', '--encoding_to', default='utf-8',
+                        help='output encoding of PukiWiki data (utf-8 / euc_jp) (tested utf-8 only)')
     parser.add_argument('-c', '--fileconv', dest='fileconv', action='store_true', default=True,
                         help='convert text files between character encodings (default: ON)')
     parser.add_argument('-C', '--nofileconv', dest='fileconv', action='store_false', default=False,
@@ -152,15 +174,15 @@ def main():
                         help='convert file paths from hex_codec to <encoding_to> (default: ON)')
     parser.add_argument('-P', '--nopathconv', dest='pathconv', action='store_false', default=False,
                         help='NOT convert file paths from hex_codec to <encoding_to>')
-    parser.add_argument('-h', '--outhexpath', dest='outhexpath', action='store_true', default=False,
-                        help='convert file paths from hex_codec (<encoding_from>) to hex_codec (<encoding_to>)')
+    parser.add_argument('-x', '--outhexpath', dest='outhexpath', action='store_true', default=False,
+                        help='convert file paths from hex_codec (euc_jp) to hex_codec (utf-8)')
     # ref.) http://qiita.com/knaka/items/48e1799b56d520af6a09
     parser.add_argument('-u', '--normalization', default='NFC',
                         help='unicode normalization mode for file paths (NFC / NFD / NFKC / NFKD) (default: NFC)')
     params = parser.parse_args()
 
-    utf8ify = UTF8ify(**vars(params))
-    utf8ify.run()
+    convpuki = ConvPuki(**vars(params))
+    convpuki.run()
 
 if __name__ == '__main__':
     main()
