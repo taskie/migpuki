@@ -165,14 +165,14 @@ def main():
     parser.add_argument('-f', '--encoding_from', default='euc_jp',
                         help='input encoding of PukiWiki data: euc_jp (default) or utf-8')
     parser.add_argument('-t', '--encoding_to', default='utf-8',
-                        help='output encoding of PukiWiki data: utf-8 (default) of euc_jp')
-    parser.add_argument('-c', '--fileconv', dest='fileconv', action='store_true', default=True,
+                        help='output encoding of PukiWiki data: utf-8 (default) or euc_jp')
+    parser.add_argument('-C', '--fileconv', dest='fileconv', action='store_true', default=True,
                         help='convert text files between character encodings (default: ON)')
-    parser.add_argument('-C', '--nofileconv', dest='fileconv', action='store_false', default=False,
+    parser.add_argument('-c', '--nofileconv', dest='fileconv', action='store_false', default=False,
                         help='NOT convert text files between character encodings')
-    parser.add_argument('-p', '--pathconv', dest='pathconv', action='store_true', default=True,
+    parser.add_argument('-P', '--pathconv', dest='pathconv', action='store_true', default=True,
                         help='convert file paths from hex to <encoding_to> (default: ON)')
-    parser.add_argument('-P', '--nopathconv', dest='pathconv', action='store_false', default=False,
+    parser.add_argument('-p', '--nopathconv', dest='pathconv', action='store_false', default=False,
                         help='NOT convert file paths from hex to <encoding_to>')
     parser.add_argument('-x', '--outhexpath', dest='outhexpath', action='store_true', default=False,
                         help='convert file paths from hex (euc_jp) to hex (utf-8)')
