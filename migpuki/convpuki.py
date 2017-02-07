@@ -62,11 +62,11 @@ class ConvPuki:
             ConvPukiConf('backup/**/*.gz', {}, gzip=True, fileconv=True, pathconv=True),
             ConvPukiConf('diff/**/*.txt', {r'/dir\.txt$'}, gzip=False, fileconv=True, pathconv=True),
             ConvPukiConf('counter/**/*.count', {}, gzip=False, fileconv=True, pathconv=True),
-            ConvPukiConf('cache/**/*', {r'\.(?:re[fl]|tmp)$'}, gzip=False, fileconv=True, pathconv=False),
+            ConvPukiConf('cache/**/*', {r'\.(?:re[fl]|tmp)$', r'/autolink\.dat$'}, gzip=False, fileconv=True, pathconv=False),
             ConvPukiConf('attach/**/*', {r'/dir\.txt$', r'\.log$'}, gzip=False, fileconv=False, pathconv=True),
         ]
         for conf in confs:
-            print('* converting {}...'.format(conf.pattern))
+            print('* converting {} ...'.format(conf.pattern))
             pattern = os.path.join(self.basedir, conf.pattern)
             excludes = {re.compile(s) for s in conf.excludes}
             for oldpath in glob.iglob(pattern, recursive=True):
@@ -104,8 +104,7 @@ class ConvPuki:
                 with openf(newpath, 'wb') as newfile:
                     with openf(oldpath, 'rb') as oldfile:
                         self.fileconv_stream(oldfile, newfile, errors='replace')
-                newnoextname, _ = os.path.splitext(os.path.basename(newpath))
-                newrawpath = os.path.join(newdirname, newnoextname + '.' + self.encoding_from)
+                newrawpath = newpath + '.' + self.encoding_from
                 shutil.copy(oldpath, newrawpath)
                 print('[copy]: {} -> {}'.format(oldpath, newrawpath), file=sys.stderr)
                 print('')
@@ -156,7 +155,7 @@ class ConvPuki:
             print(*args, **kwargs)
 
 def main():
-    parser = argparse.ArgumentParser(description='convert encoding PukiWiki data.')
+    parser = argparse.ArgumentParser(description='PukiWiki encoding converter')
     parser.add_argument('basedir',
                         help='PukiWiki root directory (which has index.php)')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,

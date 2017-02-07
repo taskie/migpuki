@@ -2,15 +2,16 @@
 set -eu
 
 if (( $# < 1 )); then
+    echo "please specify basedir"
+    echo "usage: $0 basedir"
     exit 1
 fi
 
 for oldfile in $(find "$1" -name '*.euc_jp')
 do
-    noextfile="${oldfile%%.euc_jp}"
-    bakfile="$noextfile.bak"
-    newfile="$noextfile.txt"
-    if [[ -f "$newfile" ]] && [[ ! -f "$noextfile.bak" ]]; then
+    newfile="${oldfile%%.euc_jp}"
+    bakfile="$newfile.bak"
+    if [[ -f "$newfile" ]] && [[ ! -f "$bakfile" ]]; then
         echo "mv \"$newfile\" \"$bakfile\""
         mv "$newfile" "$bakfile"
     fi
