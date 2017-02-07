@@ -21,11 +21,13 @@ renamelog_from_re = re.compile(r'\s*--From:\[\[(.+?)\]\]\s*')
 renamelog_to_re = re.compile(r'\s*--To:\[\[(.+?)\]\]\s*')
 
 class Gitify:
-    def __init__(self, basedir, *, verbose=False, outdir='wiki-repo', name=None, email=None, renamelog=False):
+    def __init__(self, basedir, *, verbose=False, outdir='wiki-repo', directcontents=False,
+                 name=None, email=None, renamelog=False):
         self.basedir = basedir
         self.basedir_abs = os.path.abspath(self.basedir)
         self.verbose = verbose
         self.outdir = outdir
+        self.directcontents = directcontents
         self.name = name
         self.email = email
         self.renamelog = renamelog
@@ -33,7 +35,7 @@ class Gitify:
         self.commit_history = []     # [Commit]
         self.rename_history = set()  # {Rename}
         self.all_history = []        # [Commit | Rename]
-        self._debug_count = 10
+        self._debug_count = 0
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -207,23 +209,31 @@ class Gitify:
             else:
                 assert False, 'Unknown Type: ' + str(type(item))
         self.git_copy_latests()
+        self.execute(['git', 'gc'])
         os.chdir(oldcwd)
+
+    def generate_commit_path(self, path):
+        if self.directcontents:
+            return path
+        else:
+            return os.path.join('wiki', path)
 
     def git_commit(self, commit):
         # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(commit.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
-        dirname = os.path.dirname(commit.path)
+        path = self.generate_commit_path(commit.path)
+        dirname = os.path.dirname(path)
         if dirname and not os.path.exists(dirname):
             os.makedirs(dirname)
-        with open(commit.path, 'w') as file:
+        with open(path, 'w') as file:
             file.write(commit.data)
         # git add
-        self.execute(['git', 'add', commit.path], exception=True)
+        self.execute(['git', 'add', path], exception=True)
         if self.git_repository_has_no_diff():
             return
-        name, _ = os.path.splitext(commit.path)
+        name, _ = os.path.splitext(path)
         # git commit
         if self.execute(['git', 'commit', '-m', name + ' (PukiWiki)']):
             # FIXME: workaround... (git add failure)
@@ -240,15 +250,17 @@ class Gitify:
         date = datetime.utcfromtimestamp(rename.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
-        if os.path.exists(rename.newpath):
+        oldpath = self.generate_commit_path(rename.oldpath)
+        newpath = self.generate_commit_path(rename.newpath)
+        if os.path.exists(newpath):
             # git rm
-            self.execute(['git', 'rm', rename.newpath])
+            self.execute(['git', 'rm', newpath])
         # git mv
-        self.execute(['git', 'mv', rename.oldpath, rename.newpath])
+        self.execute(['git', 'mv', oldpath, newpath])
         if self.git_repository_has_no_diff():
             return
-        oldname, _ = os.path.splitext(rename.oldpath)
-        newname, _ = os.path.splitext(rename.newpath)
+        oldname, _ = os.path.splitext(oldpath)
+        newname, _ = os.path.splitext(newpath)
         # git commit
         self.execute(['git', 'commit', '-m', oldname + ' -> ' + newname + ' (PukiWiki)'])
 
@@ -266,6 +278,7 @@ class Gitify:
         prefixlen = len(os.path.join(self.basedir_abs, 'wiki') + os.sep)
         for oldpath in glob.iglob(pattern, recursive=True):
             newpath = oldpath[prefixlen:]
+            newpath = self.generate_commit_path(newpath)
             dirname = os.path.dirname(newpath)
             if dirname and not os.path.exists(dirname):
                 os.makedirs(dirname)
@@ -309,8 +322,10 @@ def main():
                         help='UTF-8ized PukiWiki root directory (which has wiki, backup and cache directories) using convpuki')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                         help='show verbose log')
-    parser.add_argument('-o', '--outdir', default='wiki-repo',
+    parser.add_argument('-o', '--outdir', default='pukiwiki-repo',
                         help='output directory name')
+    parser.add_argument('-d', '--directcontents', dest='directcontents', action='store_true', default=False,
+                        help='create content files directly in root directory of git repo')
     parser.add_argument('-n', '--name', help='git author and committer name')
     parser.add_argument('-e', '--email', help='git author and committer email')
     parser.add_argument('-r', '--renamelog', dest='renamelog', action='store_true', default=False,

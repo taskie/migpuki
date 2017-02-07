@@ -37,7 +37,7 @@ convpuki で UTF-8 化した後の wiki / backup / cache データを Git リポ
 
 ### 使い方
 
-以下の操作でカレントディレクトリに `wiki-repo` ディレクトリが生成されます。
+以下の操作でカレントディレクトリに `pukiwiki-repo` ディレクトリが生成されます。
 
 ```
 ./gitify.py <convpuki.py の生成した wiki, backup, cache のあるディレクトリ>
@@ -76,7 +76,8 @@ convpuki で UTF-8 化した後の wiki / backup / cache データを Git リポ
 * `-h`, `--help`: ヘルプを表示します
 * `-v`, `--verbose`: 詳細なログを吐きます
 * `-o`, `--outdir`: 出力ディレクトリ名を指定できます
-    + デフォルト：wiki-repo
+    + デフォルト：pukiwiki-repo
+* `-d`, `--directcontents`: wiki コンテンツをリポジトリのディレクトリ直下に配置します
 * `-n`, `--name`: リポジトリの author / committer の名前を指定できます
     + 指定しなければ local での設定はしません（git は global の `user.name` を見に行きます）
 * `-e`, `--email`: リポジトリの author / committer のメールアドレスを指定できます
