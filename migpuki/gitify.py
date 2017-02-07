@@ -33,7 +33,7 @@ class Gitify:
         self.commit_history = []     # [Commit]
         self.rename_history = set()  # {Rename}
         self.all_history = []        # [Commit | Rename]
-        self._debug_count = 0
+        self._debug_count = 10
 
     def run(self):
         if os.path.exists(self.outdir):
@@ -290,9 +290,9 @@ class Gitify:
     def execute(self, command, *, silent=False, exception=False):
         proc = None
         if silent:
-            proc = subprocess.run(command, stdout=subprocess.PIPE)
-        else:
             proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        else:
+            proc = subprocess.run(command, stdout=subprocess.PIPE)
         message = proc.stdout.decode('utf-8')
         if not silent:
             if proc.returncode != 0:
@@ -306,13 +306,13 @@ class Gitify:
 def main():
     parser = argparse.ArgumentParser(description='gitify PukiWiki data.')
     parser.add_argument('basedir',
-                        help='UTF-8ized PukiWiki root directory (which has wiki / backup directories) using convpuki')
+                        help='UTF-8ized PukiWiki root directory (which has wiki, backup and cache directories) using convpuki')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                         help='show verbose log')
     parser.add_argument('-o', '--outdir', default='wiki-repo',
                         help='output directory name')
-    parser.add_argument('-n', '--name', help='git author / committer name')
-    parser.add_argument('-e', '--email', help='git author / committer email')
+    parser.add_argument('-n', '--name', help='git author and committer name')
+    parser.add_argument('-e', '--email', help='git author and committer email')
     parser.add_argument('-r', '--renamelog', dest='renamelog', action='store_true', default=False,
                         help='parse rename log and execute git mv (experimental)')
     params = parser.parse_args()

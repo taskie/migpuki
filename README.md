@@ -2,9 +2,9 @@
 
 PukiWiki から脱出するためのツール群（Linux / macOS 用）
 
-## utf8ify.py
+## convpuki.py
 
-PukiWiki のデータとファイル名を UTF-8 に変換する Python スクリプト
+PukiWiki のデータとファイル名を UTF-8 等に変換する Python スクリプト
 
 ### 必須
 
@@ -12,10 +12,10 @@ PukiWiki のデータとファイル名を UTF-8 に変換する Python スク�
 
 ### 使い方
 
-以下の操作でカレントディレクトリに `utf8` ディレクトリが生成されます。
+以下の操作でカレントディレクトリに `pukiwiki-conv` ディレクトリが生成されます。
 
 ```
-./utf8ify.py <EUC 版 PukiWiki の index.php のあるディレクトリ>
+./convpuki.py <PukiWiki の index.php のあるディレクトリ>
 ```
 
 ### 注意
@@ -24,11 +24,11 @@ PukiWiki のデータとファイル名を UTF-8 に変換する Python スク�
     * とりあえずエラーを無視（`errors=replace`）して無理矢理続行する
 * 変換に失敗した場合元のファイルを .euc_jp という拡張子で出力先にそのままコピーするのでそれを nkf のような別ソフトで各自変換してください
     * nkf でこのファイルを UTF-8 に一括変換する bash スクリプトを `contrib/nkfy.sh` として用意しておきました
-    * `./nkfy.sh <utf8ify.py の生成したディレクトリ>` のように使う
+    * `./nkfy.sh <convpuki.py の生成したディレクトリ>` のように使う
 
 ## gitify.py
 
-utf8ify 後の wiki/backup データを Git リポジトリに変換する Python スクリプト
+convpuki で UTF-8 化した後の wiki / backup / cache データを Git リポジトリに変換する Python スクリプト
 
 ### 必須
 
@@ -40,26 +40,30 @@ utf8ify 後の wiki/backup データを Git リポジトリに変換する Pytho
 以下の操作でカレントディレクトリに `wiki-repo` ディレクトリが生成されます。
 
 ```
-./gitify.py <utf8ify.py の生成した wiki, backup のあるディレクトリ>
+./gitify.py <convpuki.py の生成した wiki, backup, cache のあるディレクトリ>
 ```
 
 ## 詳細な使い方
 
-### utf8ify.py
+### convpuki.py
 
 ```
-./utf8ify.py [-h] [-v] [-o OUTDIR] [-n] [-e ENCODING] [-u NORMALIZE] basedir
+./convpuki.py [-h] [-v] [-o OUTDIR] [-n] [-e ENCODING] [-u NORMALIZE] basedir
 ```
 
 * `-h`, `--help`: ヘルプを表示します
 * `-v`, `--verbose`: 詳細なログを吐きます
 * `-o`, `--outdir`: 出力ディレクトリ名を指定できます
-    + デフォルト：utf8
-* `-n`, `--noconvert`: ファイル内容を文字コード変換しません
-    + デフォルト：オフ（ファイル内容を文字コード変換します）
-* `-e`, `--encoding`: 入力文字コードを指定できます (euc\_jp / utf\_8)
+    + デフォルト：pukiwiki-conv
+* `-f`, `--encoding_from`: 入力文字コードを指定できます (euc\_jp / utf-8)
     + デフォルト：euc\_jp
-    + EUC 版しかテストしてません
+* `-t`, `--encoding_to`: 出力文字コードを指定できます (utf-8 / euc\_jp)
+    + デフォルト：utf-8
+* `-C`, `--fileconv`: ファイル内容を文字コード変換します（デフォルト）
+* `-c`, `--nofileconv`: ファイル内容を文字コード変換しません
+* `-P`, `--pathconv`: ファイルパスを文字コード変換します（デフォルト）
+* `-p`, `--nopathconv`: ファイルパスを文字コード変換しません
+* `-x`, `--outhexpath`: ファイルパスを PukiWiki の `[0-9A-F]+` 形式に変換します
 * `-u`, `--normalize`: 変換後ファイルパスの Unicode 正規化のタイプを指定できます (NFC / NFD / NFKC / NFKD)
     + デフォルト：NFC
 

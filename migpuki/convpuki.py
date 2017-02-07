@@ -175,7 +175,7 @@ def main():
     parser.add_argument('-p', '--nopathconv', dest='pathconv', action='store_false', default=False,
                         help='NOT convert file paths from hex to <encoding_to>')
     parser.add_argument('-x', '--outhexpath', dest='outhexpath', action='store_true', default=False,
-                        help='convert file paths from hex (euc_jp) to hex (utf-8)')
+                        help='convert file paths from hex (<encoding_from>) to hex (<encoding_to>)')
     # ref.) http://qiita.com/knaka/items/48e1799b56d520af6a09
     parser.add_argument('-u', '--normalization', default='NFC',
                         help='unicode normalization mode for file paths: NFC (default), NFD, NFKC or NFKD')
