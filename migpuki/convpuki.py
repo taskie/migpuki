@@ -25,7 +25,7 @@ valid_normalizations = {'NFC', 'NFD', 'NFKC', 'NFKD'}
 
 class ConvPuki:
     def __init__(self, basedir, *,
-                 verbose=False, outdir='utf-8', encoding_from='euc_jp', encoding_to='utf-8',
+                 verbose=False, outdir='pukiwiki-conv', encoding_from='euc_jp', encoding_to='utf-8',
                  fileconv=True, pathconv=True, outhexpath=False, normalization='NFC'):
         self.basedir = basedir
         self.verbose = verbose
@@ -66,7 +66,7 @@ class ConvPuki:
             ConvPukiConf('attach/**/*', {r'/dir\.txt$', r'\.log$'}, gzip=False, fileconv=False, pathconv=True),
         ]
         for conf in confs:
-            print('* converting {} (excluded: {}) ...'.format(conf.pattern, ', '.join(conf.excludes)))
+            print('* converting {}...'.format(conf.pattern))
             pattern = os.path.join(self.basedir, conf.pattern)
             excludes = {re.compile(s) for s in conf.excludes}
             for oldpath in glob.iglob(pattern, recursive=True):
@@ -125,18 +125,19 @@ class ConvPuki:
             try:
                 newparts = []
                 for s in oldparts:
-                    b = codecs.decode(s, 'hex_codec')
+                    b = codecs.decode(s, 'hex')
                     s = b.decode(self.encoding_from)
                     if self.outhexpath:
                         b = s.encode(self.encoding_to)
-                        b = codecs.encode(b, 'hex_codec')
+                        b = codecs.encode(b, 'hex')
                         s = codecs.decode(b, 'ascii').upper()
                     newparts.append(s)
                 newnoextname = '_'.join(newparts)
                 if self.encoding_to == 'utf-8':
                     newnoextname = unicodedata.normalize(self.normalization, newnoextname)
             except Exception as e:
-                raise e  # FIXME?
+                print('Error: ' + oldpath, file=sys.stderr)
+                raise e
         else:
             newnoextname = oldnoextname
         for c in pathbadchars:
@@ -160,25 +161,25 @@ def main():
                         help='PukiWiki root directory (which has index.php)')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                         help='show verbose log')
-    parser.add_argument('-o', '--outdir', default='utf8',
-                        help='output directory name')
+    parser.add_argument('-o', '--outdir', default='pukiwiki-conv',
+                        help='output directory name (default: pukiwiki-conv)')
     parser.add_argument('-f', '--encoding_from', default='euc_jp',
-                        help='input encoding of PukiWiki data (euc_jp / utf-8) (tested euc_jp only)')
+                        help='input encoding of PukiWiki data: euc_jp (default) or utf-8')
     parser.add_argument('-t', '--encoding_to', default='utf-8',
-                        help='output encoding of PukiWiki data (utf-8 / euc_jp) (tested utf-8 only)')
+                        help='output encoding of PukiWiki data: utf-8 (default) of euc_jp')
     parser.add_argument('-c', '--fileconv', dest='fileconv', action='store_true', default=True,
                         help='convert text files between character encodings (default: ON)')
     parser.add_argument('-C', '--nofileconv', dest='fileconv', action='store_false', default=False,
                         help='NOT convert text files between character encodings')
     parser.add_argument('-p', '--pathconv', dest='pathconv', action='store_true', default=True,
-                        help='convert file paths from hex_codec to <encoding_to> (default: ON)')
+                        help='convert file paths from hex to <encoding_to> (default: ON)')
     parser.add_argument('-P', '--nopathconv', dest='pathconv', action='store_false', default=False,
-                        help='NOT convert file paths from hex_codec to <encoding_to>')
+                        help='NOT convert file paths from hex to <encoding_to>')
     parser.add_argument('-x', '--outhexpath', dest='outhexpath', action='store_true', default=False,
-                        help='convert file paths from hex_codec (euc_jp) to hex_codec (utf-8)')
+                        help='convert file paths from hex (euc_jp) to hex (utf-8)')
     # ref.) http://qiita.com/knaka/items/48e1799b56d520af6a09
     parser.add_argument('-u', '--normalization', default='NFC',
-                        help='unicode normalization mode for file paths (NFC / NFD / NFKC / NFKD) (default: NFC)')
+                        help='unicode normalization mode for file paths: NFC (default), NFD, NFKC or NFKD')
     params = parser.parse_args()
 
     convpuki = ConvPuki(**vars(params))
