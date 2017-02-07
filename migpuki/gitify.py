@@ -37,20 +37,21 @@ class Gitify:
 
     def run(self):
         if os.path.exists(self.outdir):
-            print('output directory "{}" already exists.'.format(self.outdir), file=sys.stderr)
+            print('output directory \'{}\' already exists.'.format(self.outdir), file=sys.stderr)
             exit(1)
         self.commit_history = []
-        print("reading pukiwiki data...")
+        print('* reading pukiwiki data...')
         self.generate_commit_history()
+        self.generate_recent_commit_history()
         self.rename_history = set()
         if self.renamelog:
             self.generate_rename_history()
-        print("creating new history...")
+        print('* creating new history...')
         self.all_history = self.commit_history + list(self.rename_history)
         self.all_history.sort()
         if self.renamelog:
             self.rename_paths_in_all_history()
-        print("generating git repo...")
+        print('* generating git repo...')
         self.generate_git_repository()
 
     def generate_commit_history(self):
@@ -69,10 +70,35 @@ class Gitify:
             path = oldpath[prefixlen:-3] + '.txt'
             if path == '_RenameLog.txt':
                 continue
-            with gzip.open(oldpath) as oldfile:
-                self.read_and_extend_commit_history(oldfile, path)
-            if self._debug_count and len(self.commit_history) > self._debug_count:
-                break
+            try:
+                with gzip.open(oldpath) as oldfile:
+                    self.read_and_extend_commit_history(oldfile, path)
+                if self._debug_count and len(self.commit_history) > self._debug_count:
+                    break
+            except Exception as e:
+                print('[error]: {}'.format(oldpath), file=sys.stderr)
+                raise e
+
+    def generate_recent_commit_history(self):
+        recentdatpath = os.path.join(self.basedir, 'cache/recent.dat')
+        prefixlen = len(os.path.join(self.basedir, 'wiki') + os.sep)
+        with open(recentdatpath) as recentdat:
+            for line in recentdat:
+                line = line.strip()
+                parts = line.split('\t')
+                try:
+                    unixtime, pagename = int(parts[0]), parts[1]
+                except Exception as e:
+                    print("invalid line of recent.dat: " + line, file=sys.stderr)
+                    raise e
+                pagepath = os.path.join(self.basedir, 'wiki', pagename + '.txt')
+                if not os.path.exists(pagepath):
+                    continue
+                buf = None
+                with open(pagepath) as page:
+                    buf = page.read()
+                path = pagepath[prefixlen:]
+                self.commit_history.append(Commit(unixtime, path, buf))
 
     def generate_rename_history(self):
         pattern = os.path.join(self.basedir, '*/_RenameLog.*')
@@ -130,7 +156,7 @@ class Gitify:
             match = renamelog_to_re.match(line)
             if match:
                 page_to = match.group(1)
-                history.add(Rename(unixtime, page_from + ".txt", page_to + ".txt"))
+                history.add(Rename(unixtime, page_from + '.txt', page_to + '.txt'))
                 unixtime = None
                 page_from = None
                 continue
@@ -158,7 +184,7 @@ class Gitify:
                     old_to_latest_map[oldpath] = newpath
                 new_history.append(item)
             else:
-                assert("Unknown Type: " + str(type(item)))
+                assert False, 'Unknown Type: ' + str(type(item))
         new_history.reverse()
         self.all_history = new_history
 
@@ -175,15 +201,15 @@ class Gitify:
             self.execute(['git', 'config', 'user.email', self.email], exception=True)
         for item in self.all_history:
             if type(item) == Commit:
-                self.commit(item)
+                self.git_commit(item)
             elif type(item) == Rename:
-                self.rename(item)
+                self.git_rename(item)
             else:
-                assert("Unknown Type: " + str(type(item)))
-        self.copy_latests()
+                assert False, 'Unknown Type: ' + str(type(item))
+        self.git_copy_latests()
         os.chdir(oldcwd)
 
-    def commit(self, commit):
+    def git_commit(self, commit):
         # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(commit.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
@@ -195,30 +221,40 @@ class Gitify:
             file.write(commit.data)
         # git add
         self.execute(['git', 'add', commit.path], exception=True)
-        if self.repository_has_no_diff():
+        if self.git_repository_has_no_diff():
             return
         name, _ = os.path.splitext(commit.path)
         # git commit
-        self.execute(['git', 'commit', '-m', name + ' (PukiWiki)'], exception=True)
+        if self.execute(['git', 'commit', '-m', name + ' (PukiWiki)']):
+            # FIXME: workaround... (git add failure)
+            # git add .
+            self.execute(['git', 'add', '.'])
+            # git diff --cached --name-only (obtain changed file name)
+            p = subprocess.run(['git', 'diff', '--cached', '--name-only'], stdout=subprocess.PIPE)
+            name, _ = os.path.splitext(p.stdout.decode('utf-8').strip())
+            # git commit
+            self.execute(['git', 'commit', '-m', name + ' (PukiWiki)'])
 
-    def rename(self, rename):
+    def git_rename(self, rename):
         # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(rename.unixtime).isoformat()
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
+        if os.path.exists(rename.newpath):
+            # git rm
+            self.execute(['git', 'rm', rename.newpath])
         # git mv
-        if self.execute(['git', 'mv', rename.oldpath, rename.newpath]):
-            return
-        if self.repository_has_no_diff():
+        self.execute(['git', 'mv', rename.oldpath, rename.newpath])
+        if self.git_repository_has_no_diff():
             return
         oldname, _ = os.path.splitext(rename.oldpath)
         newname, _ = os.path.splitext(rename.newpath)
         # git commit
-        self.execute(['git', 'commit', '-m', oldname + ' -> ' + newname + ' (PukiWiki)'], exception=True)
+        self.execute(['git', 'commit', '-m', oldname + ' -> ' + newname + ' (PukiWiki)'])
 
-    def copy_latests(self):
+    def git_copy_latests(self):
         # !!! you must chdir to git repo when you use this function !!!
-        print("finalizing...")
+        print('* finalizing...')
         if 'GIT_COMMITTER_DATE' in os.environ:
             del os.environ['GIT_COMMITTER_DATE']
         if 'GIT_AUTHOR_DATE' in os.environ:
@@ -236,12 +272,12 @@ class Gitify:
             shutil.copy(oldpath, newpath)
             # git add (wiki/*)
             self.execute(['git', 'add', newpath], exception=True)
-        if self.repository_has_no_diff():
+        if self.git_repository_has_no_diff():
             return
         # git commit
-        self.execute(['git', 'commit', '-m', 'migrated from PukiWiki using migpuki'], exception=True)
+        self.execute(['git', 'commit', '-m', 'migrated from PukiWiki using migpuki'])
 
-    def repository_has_no_diff(self):
+    def git_repository_has_no_diff(self):
         # !!! you must chdir to git repo when you use this function !!!
         # git diff-index
         # http://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
@@ -270,23 +306,18 @@ class Gitify:
 def main():
     parser = argparse.ArgumentParser(description='gitify PukiWiki data.')
     parser.add_argument('basedir',
-                        help='UTF-8ized PukiWiki root directory (which has wiki / backup directories)')
+                        help='UTF-8ized PukiWiki root directory (which has wiki / backup directories) using convpuki')
     parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                         help='show verbose log')
     parser.add_argument('-o', '--outdir', default='wiki-repo',
                         help='output directory name')
-    parser.add_argument('-n', '--name', help='Git author / committer name')
-    parser.add_argument('-e', '--email', help='Git author / committer email')
+    parser.add_argument('-n', '--name', help='git author / committer name')
+    parser.add_argument('-e', '--email', help='git author / committer email')
     parser.add_argument('-r', '--renamelog', dest='renamelog', action='store_true', default=False,
                         help='parse rename log and execute git mv (experimental)')
     params = parser.parse_args()
 
-    gitify = Gitify(basedir=params.basedir,
-                    verbose=params.verbose,
-                    outdir=params.outdir,
-                    name=params.name,
-                    email=params.email,
-                    renamelog=params.renamelog)
+    gitify = Gitify(**vars(params))
     gitify.run()
 
 if __name__ == '__main__':
