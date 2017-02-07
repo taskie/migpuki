@@ -64,6 +64,7 @@ convpuki で UTF-8 化した後の wiki / backup / cache データを Git リポ
 * `-P`, `--pathconv`: ファイルパスを文字コード変換します（デフォルト）
 * `-p`, `--nopathconv`: ファイルパスを文字コード変換しません
 * `-x`, `--outhexpath`: ファイルパスを PukiWiki の `[0-9A-F]+` 形式に変換します
+    + デフォルト：オフ
 * `-u`, `--normalize`: 変換後ファイルパスの Unicode 正規化のタイプを指定できます (NFC / NFD / NFKC / NFKD)
     + デフォルト：NFC
 
@@ -78,6 +79,7 @@ convpuki で UTF-8 化した後の wiki / backup / cache データを Git リポ
 * `-o`, `--outdir`: 出力ディレクトリ名を指定できます
     + デフォルト：pukiwiki-repo
 * `-d`, `--directcontents`: wiki コンテンツをリポジトリのディレクトリ直下に配置します
+    + デフォルト：オフ
 * `-n`, `--name`: リポジトリの author / committer の名前を指定できます
     + 指定しなければ local での設定はしません（git は global の `user.name` を見に行きます）
 * `-e`, `--email`: リポジトリの author / committer のメールアドレスを指定できます
