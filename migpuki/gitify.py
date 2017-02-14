@@ -17,8 +17,7 @@ Commit = namedtuple('Commit', ['unixtime', 'path', 'data'])
 Rename = namedtuple('Rename', ['unixtime', 'oldpath', 'newpath'])
 unixtime_re = re.compile(r'\s*\>{10}\s+(\d+)\s*')
 renamelog_date_re = re.compile(r'\s*\*(\d+)-(\d+)-(\d+)\s*\(.+?\)\s*(\d+):(\d+):(\d+)\s*')
-renamelog_from_re = re.compile(r'\s*--From:\[\[(.+?)\]\]\s*')
-renamelog_to_re = re.compile(r'\s*--To:\[\[(.+?)\]\]\s*')
+renamelog_change_re = re.compile(r'^-([^\-].*?)→(.+)$')
 
 class Gitify:
     def __init__(self, basedir, *, verbose=False, outdir='wiki-repo', directcontents=False,
@@ -141,7 +140,6 @@ class Gitify:
     def read_rename_history(self, file):
         history = set()
         unixtime = None
-        page_from = None
         for line in file:
             if hasattr(line, 'decode'):
                 line = line.decode('utf-8')
@@ -151,16 +149,11 @@ class Gitify:
                 y, mo, d, h, mi, s = map(int, match.groups())
                 unixtime = int(datetime(y, mo, d, h, mi, s, 0).timestamp())
                 continue
-            match = renamelog_from_re.match(line)
+            match = renamelog_change_re.match(line)
             if match:
                 page_from = match.group(1)
-                continue
-            match = renamelog_to_re.match(line)
-            if match:
-                page_to = match.group(1)
+                page_to = match.group(2)
                 history.add(Rename(unixtime, page_from + '.txt', page_to + '.txt'))
-                unixtime = None
-                page_from = None
                 continue
         return history
 
@@ -218,6 +211,13 @@ class Gitify:
         else:
             return os.path.join('wiki', path)
 
+    def remove_path_prefix(self, path):
+        if not self.directcontents:
+            prefix = 'wiki' + os.sep
+            if path.startswith(prefix):
+                return path[len(prefix):]
+        return path
+
     def git_commit(self, commit):
         # !!! you must chdir to git repo when you use this function !!!
         date = datetime.utcfromtimestamp(commit.unixtime).isoformat()
@@ -234,6 +234,7 @@ class Gitify:
         if self.git_repository_has_no_diff():
             return
         name, _ = os.path.splitext(path)
+        name = self.remove_path_prefix(name)
         # git commit
         if self.execute(['git', 'commit', '-m', name + ' (PukiWiki)']):
             # FIXME: workaround... (git add failure)
@@ -242,6 +243,7 @@ class Gitify:
             # git diff --cached --name-only (obtain changed file name)
             p = subprocess.run(['git', 'diff', '--cached', '--name-only'], stdout=subprocess.PIPE)
             name, _ = os.path.splitext(p.stdout.decode('utf-8').strip())
+            name = self.remove_path_prefix(name)
             # git commit
             self.execute(['git', 'commit', '-m', name + ' (PukiWiki)'])
 
@@ -260,9 +262,11 @@ class Gitify:
         if self.git_repository_has_no_diff():
             return
         oldname, _ = os.path.splitext(oldpath)
+        oldname = self.remove_path_prefix(oldname)
         newname, _ = os.path.splitext(newpath)
+        newname = self.remove_path_prefix(newname)
         # git commit
-        self.execute(['git', 'commit', '-m', oldname + ' -> ' + newname + ' (PukiWiki)'])
+        self.execute(['git', 'commit', '-m', oldname + ' → ' + newname + ' (PukiWiki)'])
 
     def git_copy_latests(self):
         # !!! you must chdir to git repo when you use this function !!!
@@ -278,6 +282,8 @@ class Gitify:
         prefixlen = len(os.path.join(self.basedir_abs, 'wiki') + os.sep)
         for oldpath in glob.iglob(pattern, recursive=True):
             newpath = oldpath[prefixlen:]
+            if newpath.startswith("_"):
+                continue
             newpath = self.generate_commit_path(newpath)
             dirname = os.path.dirname(newpath)
             if dirname and not os.path.exists(dirname):
