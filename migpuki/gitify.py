@@ -220,7 +220,7 @@ class Gitify:
 
     def git_commit(self, commit):
         # !!! you must chdir to git repo when you use this function !!!
-        date = datetime.utcfromtimestamp(commit.unixtime).isoformat()
+        date = datetime.utcfromtimestamp(commit.unixtime).isoformat() + "Z"
         os.environ['GIT_COMMITTER_DATE'] = date
         os.environ['GIT_AUTHOR_DATE'] = date
         path = self.generate_commit_path(commit.path)
